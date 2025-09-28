@@ -38,11 +38,15 @@ struct Point
     int y = 0;
 };
 
+// 棋盘格子结构体，指的是棋盘上的一个格子，它可以包含最多三个棋子。
 struct PyrgaGridBox
 {
     Point position;
-    std::array<PyrgaPiece, BOARD_SIZE> pieces = {};
-
+    std::array<PyrgaPiece, 3> pieces = {};
+    bool IsFull() const;
+    // 检查格子中是否有指定类型的棋子。比如 grid[3][1][PyrgaPieceType::Square] 可以检查 (3,1) 格子中是否有正方形棋子。
+    bool operator[](PyrgaPieceType type) const;
+    PyrgaPlayerID TowerOwner(int completeLevel = 3) const; // 如果当前格已经有三个棋子，那么有更多棋子的玩家是当前格子的拥有者，否则返回 PLAYER_UNKNOWN
 };
 
 struct PyrgaBoard
@@ -54,5 +58,6 @@ struct PyrgaBoard
     int BoardWidth = BOARD_SIZE;
     int BoardHeight = BOARD_SIZE;
 
-    bool placePiece(int x, int y, PyrgaPieceType piece, PyrgaPlayerID player);
+    bool placePiece(Point &pos, PyrgaPiece &piece);
+    PyrgaGridBox operator[](const Point &pos) const;
 };

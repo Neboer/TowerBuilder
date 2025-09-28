@@ -11,24 +11,29 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 查找 raylib
 
-if (NOT TARGET raylib)
-find_package(raylib 4.0 REQUIRED) # 版本号可根据你安装的改
-endif()
+# if (NOT TARGET raylib)
+# find_package(raylib) # 版本号可根据你安装的改
+# endif()
 
 # 添加可执行程序
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME} 
+    src/main.cpp
+    src/pyrga_base.cpp
+    src/pyrga_game_game_turns.cpp
+    src/pyrga_game_update_valid_moves.cpp
+)
 
 # 链接 raylib
 
-target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
+# target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
 
 # macOS 需要额外框架
 
-if (APPLE)
-target_link_libraries(${PROJECT_NAME} PRIVATE
-"-framework IOKit"
-"-framework Cocoa"
-"-framework OpenGL"
-)
-endif()
+# if (APPLE)
+# target_link_libraries(${PROJECT_NAME} PRIVATE
+# "-framework IOKit"
+# "-framework Cocoa"
+# "-framework OpenGL"
+# )
+# endif()

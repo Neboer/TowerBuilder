@@ -1,2 +1,8 @@
-.vscode
-build
+.vscode/
+.cache/
+.DS_Store
+/build/
+/build-*/
+/dist/
+__pycache__/
+*.pyc

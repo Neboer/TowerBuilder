@@ -1,78 +1,95 @@
 #include "pyrga_game.h"
-#include <string>
-#include <stdexcept>
 
-bool PyrgaGame::CheckPlaceValid(Point &pos, PyrgaPiece &piece)
+bool PyrgaGame::CanPlacePiece(const Point &pos, const PyrgaPiece &piece) const
 {
-    // 检查是否有同类型的棋子在目标格子中。
-    if (board.grid[pos.x][pos.y][piece.type])
+    if (gameOver || currentPlayer < 0 || currentPlayer > 1 || piece.Empty ||
+        piece.owner != currentPlayer || pos.x < 0 || pos.x >= BOARD_SIZE ||
+        pos.y < 0 || pos.y >= BOARD_SIZE)
+        return false;
+    if (piece.type != PyrgaPieceType::Square && piece.type != PyrgaPieceType::Triangle &&
+        piece.type != PyrgaPieceType::Cylinder)
+        return false;
+    const auto stock = players[currentPlayer].piecesCount.find(piece.type);
+    if (stock == players[currentPlayer].piecesCount.end() || stock->second <= 0)
+        return false;
+    if (piece.type == PyrgaPieceType::Square && currentPlayer == startingPlayer_ &&
+        openingWasSquare_ && movesPlayed_[currentPlayer] == 1)
+        return false;
+    if (piece.type == PyrgaPieceType::Triangle)
     {
-        return false; // Same type piece already exists in the grid box
-    }
-    // 既然当前格没有同类棋子，如果当前所有格子都可以放置，那么一定是可以放置的。
-    if (currentValidMovePositionsIsAllGrid)
-    {
-        return true;
-    }
-    else
-    {
-        // 否则检查是否在有效位置列表中
-        for (const auto &validPos : currentValidMovePositions)
+        switch (piece.orientation)
         {
-            if (validPos.x == pos.x && validPos.y == pos.y)
-            {
-                return true;
-            }
+        case Orientation::Up: if (pos.y == 0) return false; break;
+        case Orientation::Down: if (pos.y == BOARD_SIZE - 1) return false; break;
+        case Orientation::Left: if (pos.x == 0) return false; break;
+        case Orientation::Right: if (pos.x == BOARD_SIZE - 1) return false; break;
+        default: return false;
         }
-        return false; // Not a valid position
     }
+    else if (piece.orientation != Orientation::None)
+        return false;
+    const auto &box = board[pos];
+    return !box.IsFull() && !box[piece.type];
 }
 
-bool PyrgaGame::MakeMove(Point &pos, PyrgaPiece &piece)
+bool PyrgaGame::HasLegalPieceAt(const Point &pos) const
 {
-    // 检查是否是当前玩家的棋子
-    if (piece.owner != currentPlayer)
+    for (const auto type : {PyrgaPieceType::Square, PyrgaPieceType::Triangle, PyrgaPieceType::Cylinder})
     {
-        throw std::runtime_error("It's not player " + std::to_string(piece.owner) + "'s turn!");
+        if (type == PyrgaPieceType::Triangle)
+        {
+            for (const auto direction : {Orientation::Up, Orientation::Down, Orientation::Left, Orientation::Right})
+                if (CanPlacePiece(pos, PyrgaPiece{false, type, currentPlayer, direction})) return true;
+        }
+        else if (CanPlacePiece(pos, PyrgaPiece{false, type, currentPlayer, Orientation::None}))
+            return true;
     }
-    // 检查玩家是否还有这种类型的棋子
-    if (players[currentPlayer].piecesCount[piece.type] <= 0)
-    {
-        throw std::runtime_error("Player " + std::to_string(currentPlayer) + " has no more pieces of type " + std::to_string(static_cast<int>(piece.type)) + "!");
-    }
-    // 检查位置是否合法
-    if (pos.x < 0 || pos.x >= board.BoardWidth || pos.y < 0 || pos.y >= board.BoardHeight)
-    {
-        throw std::runtime_error("Position (" + std::to_string(pos.x) + ", " + std::to_string(pos.y) + ") is out of bounds!");
-    }
-    // 检查放置是否合法
-    if (!CheckPlaceValid(pos, piece))
-    {
-        throw std::runtime_error("Cannot place piece at (" + std::to_string(pos.x) + ", " + std::to_string(pos.y) + ")!");
-    }
-    // 尝试放置棋子
-    if (!board.placePiece(pos, piece))
-    {
-        throw std::runtime_error("Failed to place piece at (" + std::to_string(pos.x) + ", " + std::to_string(pos.y) + ")!");
-    }
-    // 成功放置后，更新玩家的棋子数量
-    players[currentPlayer].piecesCount[piece.type]--;
-    // 更新最后一次移动的信息
+    return false;
+}
+
+bool PyrgaGame::CheckPlaceValid(const Point &pos, const PyrgaPiece &piece) const
+{
+    if (!CanPlacePiece(pos, piece)) return false;
+    for (const auto &candidate : currentValidMovePositions)
+        if (candidate.x == pos.x && candidate.y == pos.y) return true;
+    return false;
+}
+
+bool PyrgaGame::MakeMove(const Point &pos, const PyrgaPiece &piece)
+{
+    if (!CheckPlaceValid(pos, piece) || !board.placePiece(pos, piece)) return false;
+    --players[currentPlayer].piecesCount.find(piece.type)->second;
+    if (nextMoveIsFirstMove) openingWasSquare_ = piece.type == PyrgaPieceType::Square;
+    ++movesPlayed_[currentPlayer];
     lastMovePosition = pos;
     lastMovePiece = piece;
     nextMoveIsFirstMove = false;
-    // 切换到下一个玩家
-    currentPlayer = (currentPlayer + 1) % 2;
-    // 更新有效移动位置
-    UpdateValidMoves();
+    currentPlayer = GetNextPlayer();
+
+    // Three complete towers wins immediately, before testing whether play can continue.
+    winner = GetWinner();
+    if (winner != PLAYER_UNKNOWN)
+    {
+        gameOver = true;
+        currentValidMovePositions.clear();
+        currentValidMovePositionsIsAllGrid = false;
+    }
+    else if (!UpdateValidMoves())
+    {
+        gameOver = true;
+        winner = GetWinner(true);
+    }
     return true;
 }
 
-PyrgaPlayerID PyrgaGame::GetNextPlayer() const {
-    return (currentPlayer + 1) % 2;
+PyrgaPlayerID PyrgaGame::GetNextPlayer() const
+{
+    return 1 - currentPlayer;
 }
 
-PyrgaGame::PyrgaGame()
+PyrgaGame::PyrgaGame(PyrgaPlayerID startingPlayer)
+    : currentPlayer(startingPlayer == 1 ? 1 : 0), startingPlayer_(currentPlayer)
 {
+    currentValidMovePositions.reserve(BOARD_SIZE * BOARD_SIZE);
     UpdateValidMoves();
 }

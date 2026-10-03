@@ -1,39 +1,35 @@
-cmake_minimum_required(VERSION 3.10)
-
-# 项目名称和语言
-
+cmake_minimum_required(VERSION 3.16)
 project(TowerBuilder LANGUAGES CXX)
-
-# 设置 C++ 标准
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# 查找 raylib
+find_package(raylib 5.0 QUIET)
+if(TARGET raylib)
+    set(TOWERBUILDER_RAYLIB raylib)
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(RAYLIB REQUIRED IMPORTED_TARGET raylib>=5.0)
+    set(TOWERBUILDER_RAYLIB PkgConfig::RAYLIB)
+endif()
 
-# if (NOT TARGET raylib)
-# find_package(raylib) # 版本号可根据你安装的改
-# endif()
-
-# 添加可执行程序
-
-add_executable(${PROJECT_NAME} 
-    src/main.cpp
+add_library(pyrga_rules
     src/pyrga_base.cpp
     src/pyrga_game_game_turns.cpp
     src/pyrga_game_update_valid_moves.cpp
+    src/pyrga_game_get_winner.cpp
+    src/pyrga_game_player.cpp
 )
+target_include_directories(pyrga_rules PUBLIC src)
 
-# 链接 raylib
+add_executable(TowerBuilder src/main.cpp)
+target_link_libraries(TowerBuilder PRIVATE pyrga_rules ${TOWERBUILDER_RAYLIB})
 
-# target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
-
-# macOS 需要额外框架
-
-# if (APPLE)
-# target_link_libraries(${PROJECT_NAME} PRIVATE
-# "-framework IOKit"
-# "-framework Cocoa"
-# "-framework OpenGL"
-# )
-# endif()
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(pyrga_rules_test tests/pyrga_rules_test.cpp)
+    target_link_libraries(pyrga_rules_test PRIVATE pyrga_rules)
+    add_test(NAME pyrga_rules COMMAND pyrga_rules_test)
+    add_test(NAME hotseat_smoke COMMAND TowerBuilder --smoke-test)
+endif()

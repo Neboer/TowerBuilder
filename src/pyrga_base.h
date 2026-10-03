@@ -46,7 +46,8 @@ struct PyrgaGridBox
     bool IsFull() const;
     // 检查格子中是否有指定类型的棋子。比如 grid[3][1][PyrgaPieceType::Square] 可以检查 (3,1) 格子中是否有正方形棋子。
     bool operator[](PyrgaPieceType type) const;
-    PyrgaPlayerID TowerOwner(int completeLevel = 3) const; // 如果当前格已经有三个棋子，那么有更多棋子的玩家是当前格子的拥有者，否则返回 PLAYER_UNKNOWN
+    // Ownership of an exact-height tower; split two-piece towers have no owner.
+    PyrgaPlayerID TowerOwner(int completeLevel = 3) const;
 };
 
 struct PyrgaBoard
@@ -58,6 +59,6 @@ struct PyrgaBoard
     int BoardWidth = BOARD_SIZE;
     int BoardHeight = BOARD_SIZE;
 
-    bool placePiece(Point &pos, PyrgaPiece &piece);
-    PyrgaGridBox operator[](const Point &pos) const;
+    bool placePiece(const Point &pos, const PyrgaPiece &piece);
+    const PyrgaGridBox &operator[](const Point &pos) const;
 };
